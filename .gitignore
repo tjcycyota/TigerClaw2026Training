@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Sensitive Strava credentials
+strava_tokens.json
+activity_summaries.json
+activity_summaries.csv
+lord_hill_activity.json
+StravaAppCredentials.txt
+.env*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
