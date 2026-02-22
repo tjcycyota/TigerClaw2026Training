@@ -1,15 +1,21 @@
 import { StravaTokens, StravaActivity } from '../types';
 import { storage } from './storage';
 
-const CLIENT_ID = '204869';
-const REDIRECT_URI = 'https://tjcycyota.github.io/TigerClaw2026Training/callback';
+// Client ID and redirect URI are stored in localStorage by the user (never hardcoded)
 const TOKEN_URL = 'https://www.strava.com/oauth/token';
 const API_BASE = 'https://www.strava.com/api/v3';
+const REDIRECT_URI = 'https://tjcycyota.github.io/TigerClaw2026Training/callback';
+
+function getClientId(): string {
+  return localStorage.getItem('tc50k_client_id') ?? '';
+}
 
 // ─── Auth URL ─────────────────────────────────────────────────────────────────
 export function getStravaAuthUrl(): string {
+  const clientId = getClientId();
+  if (!clientId) throw new Error('Strava Client ID not configured');
   const params = new URLSearchParams({
-    client_id: CLIENT_ID,
+    client_id: clientId,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
     approval_prompt: 'auto',
@@ -18,13 +24,13 @@ export function getStravaAuthUrl(): string {
   return `https://www.strava.com/oauth/authorize?${params}`;
 }
 
-// ─── Token exchange (called by callback page, then stored) ────────────────────
-export async function exchangeCode(code: string, clientSecret: string): Promise<StravaTokens> {
+// ─── Token exchange ────────────────────────────────────────────────────────────
+export async function exchangeCode(code: string, clientId: string, clientSecret: string): Promise<StravaTokens> {
   const resp = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       client_secret: clientSecret,
       code,
       grant_type: 'authorization_code',
@@ -41,12 +47,12 @@ export async function exchangeCode(code: string, clientSecret: string): Promise<
 }
 
 // ─── Token refresh ────────────────────────────────────────────────────────────
-export async function refreshTokens(tokens: StravaTokens, clientSecret: string): Promise<StravaTokens> {
+export async function refreshTokens(tokens: StravaTokens, clientId: string, clientSecret: string): Promise<StravaTokens> {
   const resp = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       client_secret: clientSecret,
       refresh_token: tokens.refreshToken,
       grant_type: 'refresh_token',
@@ -63,13 +69,13 @@ export async function refreshTokens(tokens: StravaTokens, clientSecret: string):
 }
 
 // ─── Get valid access token (auto-refresh if needed) ─────────────────────────
-async function getAccessToken(clientSecret: string): Promise<string> {
+async function getAccessToken(clientId: string, clientSecret: string): Promise<string> {
   let tokens = storage.getTokens();
   if (!tokens) throw new Error('Not authenticated with Strava');
 
   const nowPlus5min = Math.floor(Date.now() / 1000) + 300;
   if (tokens.expiresAt < nowPlus5min) {
-    tokens = await refreshTokens(tokens, clientSecret);
+    tokens = await refreshTokens(tokens, clientId, clientSecret);
     storage.setTokens(tokens);
   }
   return tokens.accessToken;
@@ -77,10 +83,11 @@ async function getAccessToken(clientSecret: string): Promise<string> {
 
 // ─── Fetch activities since a date ───────────────────────────────────────────
 export async function fetchActivitiesSince(
-  afterDate: string,   // ISO "2026-02-09"
+  afterDate: string,
+  clientId: string,
   clientSecret: string
 ): Promise<StravaActivity[]> {
-  const accessToken = await getAccessToken(clientSecret);
+  const accessToken = await getAccessToken(clientId, clientSecret);
   const afterEpoch = Math.floor(new Date(afterDate).getTime() / 1000);
 
   const activities: StravaActivity[] = [];

@@ -11,27 +11,27 @@ export function useStrava() {
   const isConnected = !!stravaStore.tokens;
 
   async function sync() {
-    if (!isConnected || !stravaStore.clientSecret) {
-      stravaStore.setSyncError('Please connect Strava first');
+    if (!isConnected || !stravaStore.clientId || !stravaStore.clientSecret) {
+      stravaStore.setSyncError('Please configure Strava Client ID and Secret in Settings');
       return;
     }
     stravaStore.setSyncing(true);
     stravaStore.setSyncError(null);
 
     try {
-      const activities = await fetchActivitiesSince(PLAN_START_DATE, stravaStore.clientSecret);
+      const activities = await fetchActivitiesSince(
+        PLAN_START_DATE,
+        stravaStore.clientId,
+        stravaStore.clientSecret
+      );
       stravaStore.setActivities(activities);
 
-      // Build week actuals
-      const weekActuals = new Map<number, { mi: number; ft: number }>();
-
-      // Match activities to workouts
+      // Match activities to workouts and update actuals
       for (const week of calendarStore.weeks) {
         for (const workout of week.workouts) {
           if (workout.type === 'rest' || workout.type === 'yoga' || workout.type === 'strength' || workout.type === 'xtrain') continue;
           const matches = matchActivitiesToWorkouts(activities, workout.date);
           if (matches.length > 0) {
-            // Best match = highest distance (for running)
             const best = matches.reduce((a, b) =>
               (a.distance_miles ?? 0) >= (b.distance_miles ?? 0) ? a : b
             );
@@ -46,7 +46,7 @@ export function useStrava() {
           }
         }
 
-        // Compute week-level actuals from all matched workouts
+        // Compute week-level actuals from all activities that fall in this week
         const weekActivities = activities.filter(a => {
           const d = a.start_date_local.split('T')[0];
           const end = week.workouts.reduce((max, w) => w.date > max ? w.date : max, week.startDate);
@@ -54,7 +54,6 @@ export function useStrava() {
         });
         const totalMi = weekActivities.reduce((s, a) => s + a.distance_miles, 0);
         const totalFt = weekActivities.reduce((s, a) => s + a.elevation_ft, 0);
-        weekActuals.set(week.weekNumber, { mi: totalMi, ft: totalFt });
         calendarStore.updateWeekActuals(week.weekNumber, totalMi, totalFt);
       }
 

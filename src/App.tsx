@@ -11,12 +11,12 @@ function useStravaCallback() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
-    if (!code || !stravaStore.clientSecret) return
+    if (!code || !stravaStore.clientId || !stravaStore.clientSecret) return
 
     // Remove code from URL without reloading
     window.history.replaceState({}, '', window.location.pathname)
 
-    exchangeCode(code, stravaStore.clientSecret)
+    exchangeCode(code, stravaStore.clientId, stravaStore.clientSecret)
       .then(tokens => stravaStore.setTokens(tokens))
       .catch(err => console.error('Token exchange failed:', err))
   }, [])

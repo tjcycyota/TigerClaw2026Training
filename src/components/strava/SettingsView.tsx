@@ -11,21 +11,27 @@ export function SettingsView() {
   const { toggleDarkMode, darkMode } = useCalendarStore();
   const { isConnected, isSyncing, syncError, lastSyncAt, sync } = useStrava();
   const [showSecret, setShowSecret] = useState(false);
+  const [localClientId, setLocalClientId] = useState(stravaStore.clientId);
   const [localSecret, setLocalSecret] = useState(stravaStore.clientSecret);
-  const [secretSaved, setSecretSaved] = useState(false);
+  const [credsSaved, setCredsSaved] = useState(false);
 
-  function handleSaveSecret() {
-    stravaStore.setClientSecret(localSecret);
-    setSecretSaved(true);
-    setTimeout(() => setSecretSaved(false), 2000);
+  function handleSaveCreds() {
+    stravaStore.setClientId(localClientId.trim());
+    stravaStore.setClientSecret(localSecret.trim());
+    setCredsSaved(true);
+    setTimeout(() => setCredsSaved(false), 2000);
   }
 
   function handleConnect() {
-    if (!stravaStore.clientSecret) {
-      alert('Please save your Strava Client Secret first');
+    if (!stravaStore.clientId || !stravaStore.clientSecret) {
+      alert('Please save your Strava Client ID and Client Secret first');
       return;
     }
-    window.location.href = getStravaAuthUrl();
+    try {
+      window.location.href = getStravaAuthUrl();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to build auth URL');
+    }
   }
 
   function handleDisconnect() {
@@ -69,21 +75,38 @@ export function SettingsView() {
             )}
           </div>
 
-          {/* Client secret input */}
-          <div className="px-4 py-3">
-            <div className="text-xs text-slate-400 mb-2">
-              Strava Client Secret{' '}
+          {/* Credentials input */}
+          <div className="px-4 py-3 space-y-3">
+            <div className="text-xs text-slate-400">
+              Find your credentials at{' '}
               <a
                 href="https://www.strava.com/settings/api"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-orange-400 underline"
               >
-                (find at strava.com/settings/api)
+                strava.com/settings/api
               </a>
+              . Stored only in this browser — never sent anywhere except Strava.
             </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+
+            {/* Client ID */}
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Client ID</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={localClientId}
+                onChange={e => setLocalClientId(e.target.value)}
+                placeholder="e.g. 12345"
+                className="w-full bg-slate-700 text-white text-xs rounded-lg px-3 py-2.5 outline-none focus:ring-1 focus:ring-orange-500 placeholder-slate-500"
+              />
+            </div>
+
+            {/* Client Secret */}
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Client Secret</label>
+              <div className="relative">
                 <input
                   type={showSecret ? 'text' : 'password'}
                   value={localSecret}
@@ -98,15 +121,16 @@ export function SettingsView() {
                   {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <button
-                onClick={handleSaveSecret}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  secretSaved ? 'bg-green-500 text-white' : 'bg-slate-600 text-slate-200 active:bg-slate-500'
-                }`}
-              >
-                {secretSaved ? 'Saved!' : 'Save'}
-              </button>
             </div>
+
+            <button
+              onClick={handleSaveCreds}
+              className={`w-full py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                credsSaved ? 'bg-green-500 text-white' : 'bg-slate-600 text-slate-200 active:bg-slate-500'
+              }`}
+            >
+              {credsSaved ? '✓ Saved to browser' : 'Save credentials'}
+            </button>
           </div>
 
           {/* Connect / Disconnect */}

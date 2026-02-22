@@ -27,7 +27,13 @@ lord_hill_activity.json
 StravaAppCredentials.txt
 .env*
 
-# Python
+# Python scripts (contain hardcoded credentials — never commit)
+fetch_strava.py
+fetch_activity_summary.py
+strava_auth.py
+*.py
+
+# Python env
 .venv/
 __pycache__/
 *.pyc

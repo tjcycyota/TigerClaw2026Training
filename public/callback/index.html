@@ -43,10 +43,10 @@
     <p id="message">Exchanging authorization code for tokens</p>
   </div>
   <script>
-    const CLIENT_ID = '204869';
     const TOKEN_URL = 'https://www.strava.com/oauth/token';
     const APP_URL = '/TigerClaw2026Training/';
-    const STORAGE_KEY = 'tc50k_client_secret';
+    const CLIENT_ID_KEY = 'tc50k_client_id';
+    const CLIENT_SECRET_KEY = 'tc50k_client_secret';
     const TOKEN_STORAGE_KEY = 'tc50k_strava_tokens';
 
     async function handleCallback() {
@@ -69,12 +69,14 @@
         return;
       }
 
-      const clientSecret = localStorage.getItem(STORAGE_KEY) || '';
-      if (!clientSecret) {
+      const clientId = localStorage.getItem(CLIENT_ID_KEY) || '';
+      const clientSecret = localStorage.getItem(CLIENT_SECRET_KEY) || '';
+
+      if (!clientId || !clientSecret) {
         spinnerEl.style.display = 'none';
-        titleEl.textContent = 'Missing client secret';
+        titleEl.textContent = 'Missing credentials';
         titleEl.className = 'error';
-        msgEl.textContent = 'Please save your Strava client secret in Settings first.';
+        msgEl.textContent = 'Please save your Strava Client ID and Secret in Settings first.';
         setTimeout(() => window.location.replace(APP_URL), 3000);
         return;
       }
@@ -84,7 +86,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            client_id: CLIENT_ID,
+            client_id: clientId,
             client_secret: clientSecret,
             code: code,
             grant_type: 'authorization_code',
