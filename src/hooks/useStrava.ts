@@ -26,38 +26,47 @@ export function useStrava() {
       );
       stravaStore.setActivities(activities);
 
-      // Match activities to workouts and update actuals
+      // Match activities to individual planned workouts
       for (const week of calendarStore.weeks) {
         for (const workout of week.workouts) {
-          if (workout.type === 'rest' || workout.type === 'yoga' || workout.type === 'strength' || workout.type === 'xtrain') continue;
+          // Only match running/quality workouts — not strength/rest placeholders
+          if (['rest', 'strength'].includes(workout.type)) continue;
+
           const matches = matchActivitiesToWorkouts(activities, workout.date);
-          if (matches.length > 0) {
-            const best = matches.reduce((a, b) =>
-              (a.distance_miles ?? 0) >= (b.distance_miles ?? 0) ? a : b
-            );
-            calendarStore.updateWorkoutActuals(workout.id, {
-              stravaActivityId: best.id,
-              actualDistanceMi: Math.round(best.distance_miles * 100) / 100,
-              actualElevationFt: Math.round(best.elevation_ft),
-              actualDurationMin: Math.round(best.moving_time / 60),
-              stravaName: best.name,
-              status: 'completed',
-            });
-          }
+          if (matches.length === 0) continue;
+
+          // For yoga workouts, look for yoga activities; for running, look for running
+          const isYogaWorkout = workout.type === 'yoga';
+          const relevant = isYogaWorkout
+            ? matches.filter(a => a.sport_type === 'Yoga')
+            : matches.filter(a => a.isRunning || (!isYogaWorkout && !a.isRunning && a.distance_miles === 0));
+
+          const best = relevant.length > 0
+            ? relevant.reduce((a, b) => a.distance_miles >= b.distance_miles ? a : b)
+            : matches[0]; // fallback to any match
+
+          calendarStore.updateWorkoutActuals(workout.id, {
+            stravaActivityId: best.id,
+            actualDistanceMi: best.isRunning ? Math.round(best.distance_miles * 100) / 100 : 0,
+            actualElevationFt: best.isRunning ? Math.round(best.elevation_ft) : 0,
+            actualDurationMin: Math.round(best.moving_time / 60),
+            stravaName: best.name,
+            status: 'completed',
+          });
         }
 
-        // Compute week-level actuals from all activities that fall in this week
+        // Week totals: only running activities count toward mileage/vert
+        const weekEnd = week.workouts.reduce((max, w) => w.date > max ? w.date : max, week.startDate);
         const weekActivities = activities.filter(a => {
           const d = a.start_date_local.split('T')[0];
-          const end = week.workouts.reduce((max, w) => w.date > max ? w.date : max, week.startDate);
-          return d >= week.startDate && d <= end;
+          return d >= week.startDate && d <= weekEnd;
         });
-        const totalMi = weekActivities.reduce((s, a) => s + a.distance_miles, 0);
-        const totalFt = weekActivities.reduce((s, a) => s + a.elevation_ft, 0);
+        const totalMi = weekActivities.filter(a => a.isRunning).reduce((s, a) => s + a.distance_miles, 0);
+        const totalFt = weekActivities.filter(a => a.isRunning).reduce((s, a) => s + a.elevation_ft, 0);
         calendarStore.updateWeekActuals(week.weekNumber, totalMi, totalFt);
       }
 
-      // Volume auto-adjust for most recently completed week
+      // Auto-adjust future volume based on last completed week
       const today = new Date().toISOString().split('T')[0];
       const completedWeeks = calendarStore.weeks.filter(w => {
         const end = w.workouts.reduce((max, wo) => wo.date > max ? wo.date : max, w.startDate);
@@ -65,19 +74,11 @@ export function useStrava() {
       });
       if (completedWeeks.length > 0) {
         const lastCompleted = completedWeeks[completedWeeks.length - 1];
-        const { adjustments, notifications } = computeVolumeAdjustments(
-          calendarStore.weeks,
-          lastCompleted.weekNumber
-        );
+        const { adjustments, notifications } = computeVolumeAdjustments(calendarStore.weeks, lastCompleted.weekNumber);
         if (adjustments.length > 0) {
-          calendarStore.setVolumeAdjustments([
-            ...calendarStore.volumeAdjustments,
-            ...adjustments,
-          ]);
+          calendarStore.setVolumeAdjustments([...calendarStore.volumeAdjustments, ...adjustments]);
         }
-        for (const n of notifications) {
-          calendarStore.addNotification(n);
-        }
+        for (const n of notifications) calendarStore.addNotification(n);
       }
 
       stravaStore.setLastSync(Date.now());
@@ -88,12 +89,5 @@ export function useStrava() {
     }
   }
 
-  return {
-    isConnected,
-    isSyncing: stravaStore.isSyncing,
-    syncError: stravaStore.syncError,
-    lastSyncAt: stravaStore.lastSyncAt,
-    activities: stravaStore.activities,
-    sync,
-  };
+  return { isConnected, isSyncing: stravaStore.isSyncing, syncError: stravaStore.syncError, lastSyncAt: stravaStore.lastSyncAt, activities: stravaStore.activities, sync };
 }

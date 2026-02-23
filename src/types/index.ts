@@ -11,6 +11,12 @@ export type WorkoutType =
 
 export type WorkoutStatus = 'planned' | 'completed' | 'skipped' | 'modified';
 export type TrainingPhase = 'build' | 'recovery' | 'simulation' | 'stimulus' | 'taper' | 'race';
+export type TimeOfDay = 'AM' | 'PM';
+
+export interface WorkoutLink {
+  label: string;
+  url: string;
+}
 
 export interface WorkoutTarget {
   distanceMiMin?: number;
@@ -19,14 +25,16 @@ export interface WorkoutTarget {
   durationMin?: number;
   pace?: string;
   notes?: string;
+  links?: WorkoutLink[];
 }
 
 export interface PlannedWorkout {
   id: string;
   date: string;           // ISO "2026-03-01"
-  originalDate: string;   // Never changes
-  week: number;           // 1-12
+  originalDate: string;
+  week: number;
   type: WorkoutType;
+  timeOfDay?: TimeOfDay;  // AM / PM when multiple workouts on same day
   target: WorkoutTarget;
   status: WorkoutStatus;
   isKeyWorkout: boolean;
@@ -41,7 +49,7 @@ export interface PlannedWorkout {
 
 export interface TrainingWeek {
   weekNumber: number;
-  startDate: string;      // Monday ISO date
+  startDate: string;
   phase: TrainingPhase;
   targetVolumeMi: number;
   targetElevationFt: number;
@@ -53,7 +61,7 @@ export interface TrainingWeek {
 export interface StravaTokens {
   accessToken: string;
   refreshToken: string;
-  expiresAt: number;      // Unix timestamp
+  expiresAt: number;
   scope: string;
 }
 
@@ -67,11 +75,12 @@ export interface StravaActivity {
   moving_time: number;
   pace_min_mile?: number | null;
   average_heartrate?: number | null;
+  isRunning: boolean;   // true = counts toward mileage; false = xtrain/yoga
 }
 
 export interface AdjustmentReason {
   type: 'traveling' | 'sick' | 'custom';
-  dates?: string[];       // ISO dates affected
+  dates?: string[];
   description?: string;
 }
 

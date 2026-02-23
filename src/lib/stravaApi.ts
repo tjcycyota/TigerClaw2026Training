@@ -1,7 +1,24 @@
 import { StravaTokens, StravaActivity } from '../types';
 import { storage } from './storage';
 
-// Client ID and redirect URI are stored in localStorage by the user (never hardcoded)
+// Sport types that count toward running mileage/elevation
+const RUNNING_SPORT_TYPES = new Set([
+  'Run', 'TrailRun', 'VirtualRun',
+]);
+
+// Sport types that are cross-training (no mileage impact)
+const XTRAIN_SPORT_TYPES = new Set([
+  'Ride', 'VirtualRide', 'MountainBikeRide', 'EBikeRide',
+  'Elliptical', 'StairStepper', 'Swim', 'Rowing', 'Hike',
+  'Snowboard', 'NordicSki', 'BackcountrySki', 'Skateboard',
+  'InlineSkate', 'RockClimbing', 'Kayaking', 'Canoeing',
+  'Surfing', 'Windsurf', 'Crossfit', 'WeightTraining',
+  'Workout',
+]);
+
+// Yoga — tracked as event, zero mileage/vert
+const YOGA_SPORT_TYPES = new Set(['Yoga']);
+
 const TOKEN_URL = 'https://www.strava.com/oauth/token';
 const API_BASE = 'https://www.strava.com/api/v3';
 const REDIRECT_URI = 'https://tjcycyota.github.io/TigerClaw2026Training/callback';
@@ -10,7 +27,6 @@ function getClientId(): string {
   return localStorage.getItem('tc50k_client_id') ?? '';
 }
 
-// ─── Auth URL ─────────────────────────────────────────────────────────────────
 export function getStravaAuthUrl(): string {
   const clientId = getClientId();
   if (!clientId) throw new Error('Strava Client ID not configured');
@@ -24,55 +40,31 @@ export function getStravaAuthUrl(): string {
   return `https://www.strava.com/oauth/authorize?${params}`;
 }
 
-// ─── Token exchange ────────────────────────────────────────────────────────────
 export async function exchangeCode(code: string, clientId: string, clientSecret: string): Promise<StravaTokens> {
   const resp = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      grant_type: 'authorization_code',
-    }),
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code' }),
   });
   if (!resp.ok) throw new Error(`Token exchange failed: ${resp.status}`);
   const data = await resp.json();
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt: data.expires_at,
-    scope: data.scope,
-  };
+  return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: data.expires_at, scope: data.scope };
 }
 
-// ─── Token refresh ────────────────────────────────────────────────────────────
 export async function refreshTokens(tokens: StravaTokens, clientId: string, clientSecret: string): Promise<StravaTokens> {
   const resp = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: tokens.refreshToken,
-      grant_type: 'refresh_token',
-    }),
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, refresh_token: tokens.refreshToken, grant_type: 'refresh_token' }),
   });
   if (!resp.ok) throw new Error(`Token refresh failed: ${resp.status}`);
   const data = await resp.json();
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt: data.expires_at,
-    scope: tokens.scope,
-  };
+  return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: data.expires_at, scope: tokens.scope };
 }
 
-// ─── Get valid access token (auto-refresh if needed) ─────────────────────────
 async function getAccessToken(clientId: string, clientSecret: string): Promise<string> {
   let tokens = storage.getTokens();
   if (!tokens) throw new Error('Not authenticated with Strava');
-
   const nowPlus5min = Math.floor(Date.now() / 1000) + 300;
   if (tokens.expiresAt < nowPlus5min) {
     tokens = await refreshTokens(tokens, clientId, clientSecret);
@@ -81,7 +73,6 @@ async function getAccessToken(clientId: string, clientSecret: string): Promise<s
   return tokens.accessToken;
 }
 
-// ─── Fetch activities since a date ───────────────────────────────────────────
 export async function fetchActivitiesSince(
   afterDate: string,
   clientId: string,
@@ -92,39 +83,43 @@ export async function fetchActivitiesSince(
 
   const activities: StravaActivity[] = [];
   let page = 1;
-  const perPage = 100;
 
   while (true) {
-    const url = `${API_BASE}/athlete/activities?after=${afterEpoch}&per_page=${perPage}&page=${page}`;
-    const resp = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const url = `${API_BASE}/athlete/activities?after=${afterEpoch}&per_page=100&page=${page}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!resp.ok) throw new Error(`Strava API error: ${resp.status}`);
     const batch = await resp.json();
     if (!Array.isArray(batch) || batch.length === 0) break;
 
     for (const act of batch) {
+      const sportType: string = act.sport_type ?? '';
+      const isRunning = RUNNING_SPORT_TYPES.has(sportType);
+      const isYoga = YOGA_SPORT_TYPES.has(sportType);
+      // Skip cycling and other xtrain from count — they show as xtrain events but 0 miles
+      const distMi = isRunning ? (act.distance ?? 0) / 1609.344 : 0;
+      const elevFt = isRunning ? (act.total_elevation_gain ?? 0) * 3.28084 : 0;
+
       activities.push({
         id: act.id,
         name: act.name,
-        sport_type: act.sport_type,
+        sport_type: sportType,
         start_date_local: act.start_date_local,
-        distance_miles: (act.distance ?? 0) / 1609.344,
-        elevation_ft: (act.total_elevation_gain ?? 0) * 3.28084,
+        distance_miles: distMi,
+        elevation_ft: elevFt,
         moving_time: act.moving_time ?? 0,
-        pace_min_mile: act.average_speed > 0 ? 26.8224 / act.average_speed : null,
+        pace_min_mile: isRunning && act.average_speed > 0 ? 26.8224 / act.average_speed : null,
         average_heartrate: act.average_heartrate ?? null,
+        isRunning,
       });
     }
 
-    if (batch.length < perPage) break;
+    if (batch.length < 100) break;
     page++;
   }
 
   return activities;
 }
 
-// ─── Match activities to planned workouts (±1 day tolerance) ─────────────────
 export function matchActivitiesToWorkouts(
   activities: StravaActivity[],
   workoutDate: string
@@ -132,12 +127,7 @@ export function matchActivitiesToWorkouts(
   const target = new Date(workoutDate);
   const prev = new Date(target); prev.setDate(prev.getDate() - 1);
   const next = new Date(target); next.setDate(next.getDate() + 1);
-
   const fmt = (d: Date) => d.toISOString().split('T')[0];
   const validDates = new Set([fmt(prev), workoutDate, fmt(next)]);
-
-  return activities.filter(a => {
-    const actDate = a.start_date_local.split('T')[0];
-    return validDates.has(actDate);
-  });
+  return activities.filter(a => validDates.has(a.start_date_local.split('T')[0]));
 }

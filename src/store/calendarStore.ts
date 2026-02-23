@@ -2,23 +2,16 @@ import { create } from 'zustand';
 import { TrainingWeek, PlannedWorkout, WorkoutStatus, VolumeAdjustment, AppNotification } from '../types';
 import { TRAINING_PLAN } from '../data/trainingPlan';
 import { storage } from '../lib/storage';
-import { getISOWeek, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 
-// Determine current week number based on today's date
 function getCurrentWeekNumber(): number {
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split('T')[0];
   for (const week of TRAINING_PLAN) {
-    const start = parseISO(week.startDate);
-    const end = new Date(start);
-    // Week runs Mon-Sun (or Mon to 13 days for race week 12)
-    const workoutDates = week.workouts.map(w => w.date);
-    const maxDate = workoutDates.reduce((a, b) => a > b ? a : b, week.startDate);
+    const maxDate = week.workouts.reduce((a, b) => b.date > a ? b.date : a, week.startDate);
     if (todayStr >= week.startDate && todayStr <= maxDate) {
       return week.weekNumber;
     }
   }
-  // Default to last week
   return TRAINING_PLAN[TRAINING_PLAN.length - 1].weekNumber;
 }
 
@@ -42,6 +35,7 @@ interface CalendarState {
     status?: WorkoutStatus;
   }) => void;
   updateWeekActuals: (weekNumber: number, actualVolumeMi: number, actualElevationFt: number) => void;
+  moveWorkoutToDate: (workoutId: string, toDate: string) => void;
   setWeeks: (weeks: TrainingWeek[]) => void;
   addNotification: (n: AppNotification) => void;
   dismissNotification: (id: string) => void;
@@ -49,7 +43,6 @@ interface CalendarState {
   toggleDarkMode: () => void;
 }
 
-// Merge stored overrides into plan
 function applyOverrides(plan: TrainingWeek[]): TrainingWeek[] {
   const overrides = storage.getWorkoutOverrides();
   if (Object.keys(overrides).length === 0) return plan;
@@ -85,9 +78,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     set(state => ({
       weeks: state.weeks.map(week => ({
         ...week,
-        workouts: week.workouts.map(w =>
-          w.id === workoutId ? { ...w, status } : w
-        ),
+        workouts: week.workouts.map(w => w.id === workoutId ? { ...w, status } : w),
       })),
     }));
   },
@@ -97,9 +88,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     set(state => ({
       weeks: state.weeks.map(week => ({
         ...week,
-        workouts: week.workouts.map(w =>
-          w.id === workoutId ? { ...w, ...data } : w
-        ),
+        workouts: week.workouts.map(w => w.id === workoutId ? { ...w, ...data } : w),
       })),
     }));
   },
@@ -111,6 +100,23 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
           ? { ...week, actualVolumeMi, actualElevationFt }
           : week
       ),
+    }));
+  },
+
+  moveWorkoutToDate: (workoutId, toDate) => {
+    const workout = get().weeks.flatMap(w => w.workouts).find(w => w.id === workoutId);
+    if (!workout) return;
+    const override = { date: toDate, isMovedFromDate: workout.isMovedFromDate ?? workout.date };
+    storage.setWorkoutOverride(workoutId, override);
+    set(state => ({
+      weeks: state.weeks.map(week => ({
+        ...week,
+        workouts: week.workouts.map(w =>
+          w.id === workoutId
+            ? { ...w, date: toDate, isMovedFromDate: w.isMovedFromDate ?? w.date }
+            : w
+        ),
+      })),
     }));
   },
 
