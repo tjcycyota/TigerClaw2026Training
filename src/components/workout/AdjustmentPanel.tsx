@@ -16,8 +16,8 @@ type Mode = 'menu' | 'move' | 'travel' | 'sick';
 // Generate candidate dates for moving: today+90 days
 function getCandidateDates(fromDate: string, count = 60): string[] {
   const dates: string[] = [];
-  const start = addDays(new Date(), -30); // include 30 days in the past
-  for (let i = 0; i < 210 && dates.length < count; i++) {
+  const start = addDays(new Date(), -7); // include 7 days in the past
+  for (let i = 0; i < 180 && dates.length < count; i++) {
     dates.push(format(addDays(start, i), 'yyyy-MM-dd'));
   }
   return dates;
