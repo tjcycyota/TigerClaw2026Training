@@ -2,7 +2,6 @@ import { useStravaStore } from '../store/stravaStore';
 import { useCalendarStore } from '../store/calendarStore';
 import { fetchActivitiesSince, matchActivitiesToWorkouts } from '../lib/stravaApi';
 import { PLAN_START_DATE } from '../data/trainingPlan';
-import { computeVolumeAdjustments } from '../lib/volumeCalculator';
 
 export function useStrava() {
   const stravaStore = useStravaStore();
@@ -26,13 +25,16 @@ export function useStrava() {
       );
       stravaStore.setActivities(activities);
 
-      // Match activities to individual planned workouts
+      // Match activities to individual planned workouts, each activity used at most once
+      const usedActivityIds = new Set<number>();
+
       for (const week of calendarStore.weeks) {
         for (const workout of week.workouts) {
           // Only match running/quality workouts — not strength/rest placeholders
           if (['rest', 'strength'].includes(workout.type)) continue;
 
-          const matches = matchActivitiesToWorkouts(activities, workout.date);
+          const matches = matchActivitiesToWorkouts(activities, workout.date)
+            .filter(a => !usedActivityIds.has(a.id));
           if (matches.length === 0) continue;
 
           // For yoga workouts, look for yoga activities; for running, look for running
@@ -44,6 +46,8 @@ export function useStrava() {
           const best = relevant.length > 0
             ? relevant.reduce((a, b) => a.distance_miles >= b.distance_miles ? a : b)
             : matches[0]; // fallback to any match
+
+          usedActivityIds.add(best.id);
 
           calendarStore.updateWorkoutActuals(workout.id, {
             stravaActivityId: best.id,
@@ -64,21 +68,6 @@ export function useStrava() {
         const totalMi = weekActivities.filter(a => a.isRunning).reduce((s, a) => s + a.distance_miles, 0);
         const totalFt = weekActivities.filter(a => a.isRunning).reduce((s, a) => s + a.elevation_ft, 0);
         calendarStore.updateWeekActuals(week.weekNumber, totalMi, totalFt);
-      }
-
-      // Auto-adjust future volume based on last completed week
-      const today = new Date().toISOString().split('T')[0];
-      const completedWeeks = calendarStore.weeks.filter(w => {
-        const end = w.workouts.reduce((max, wo) => wo.date > max ? wo.date : max, w.startDate);
-        return end < today;
-      });
-      if (completedWeeks.length > 0) {
-        const lastCompleted = completedWeeks[completedWeeks.length - 1];
-        const { adjustments, notifications } = computeVolumeAdjustments(calendarStore.weeks, lastCompleted.weekNumber);
-        if (adjustments.length > 0) {
-          calendarStore.setVolumeAdjustments([...calendarStore.volumeAdjustments, ...adjustments]);
-        }
-        for (const n of notifications) calendarStore.addNotification(n);
       }
 
       stravaStore.setLastSync(Date.now());

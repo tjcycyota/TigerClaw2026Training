@@ -4,7 +4,7 @@ import { X, Plane, Thermometer, SkipForward, CheckSquare, CalendarDays } from 'l
 import { PlannedWorkout } from '../../types';
 import { useScheduleAdjust } from '../../hooks/useScheduleAdjust';
 import { useCalendarStore } from '../../store/calendarStore';
-import { format, parseISO, addDays, getDay } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 
 interface AdjustmentPanelProps {
   workout: PlannedWorkout;
@@ -13,15 +13,13 @@ interface AdjustmentPanelProps {
 
 type Mode = 'menu' | 'move' | 'travel' | 'sick';
 
-// Generate candidate dates for moving: today+90 days, skip Mondays
+// Generate candidate dates for moving: today+90 days
 function getCandidateDates(fromDate: string, count = 42): string[] {
   const dates: string[] = [];
   const start = new Date();
   for (let i = 0; i < 180 && dates.length < count; i++) {
     const d = addDays(start, i);
-    if (getDay(d) !== 1) { // skip Mondays
-      dates.push(format(d, 'yyyy-MM-dd'));
-    }
+    dates.push(format(d, 'yyyy-MM-dd'));
   }
   return dates;
 }
@@ -152,7 +150,7 @@ export function AdjustmentPanel({ workout, onClose }: AdjustmentPanelProps) {
             {/* ─── MOVE TO DAY ─── */}
             {mode === 'move' && (
               <div className="p-4">
-                <p className="text-xs text-slate-400 mb-3">Tap a date to move <strong className="text-white">{workout.type.replace('_', ' ')}</strong> there. Mondays are excluded (rest day).</p>
+                <p className="text-xs text-slate-400 mb-3">Tap a date to move <strong className="text-white">{workout.type.replace('_', ' ')}</strong> there.</p>
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {candidateDates.map(date => {
                     const isOriginal = date === workout.originalDate;

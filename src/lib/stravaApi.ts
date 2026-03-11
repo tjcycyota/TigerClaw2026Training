@@ -79,7 +79,8 @@ export async function fetchActivitiesSince(
   clientSecret: string
 ): Promise<StravaActivity[]> {
   const accessToken = await getAccessToken(clientId, clientSecret);
-  const afterEpoch = Math.floor(new Date(afterDate).getTime() / 1000);
+  // Interpret afterDate as PST (UTC-8) midnight to avoid missing activities on that day
+  const afterEpoch = Math.floor(new Date(`${afterDate}T00:00:00-08:00`).getTime() / 1000);
 
   const activities: StravaActivity[] = [];
   let page = 1;
@@ -124,10 +125,6 @@ export function matchActivitiesToWorkouts(
   activities: StravaActivity[],
   workoutDate: string
 ): StravaActivity[] {
-  const target = new Date(workoutDate);
-  const prev = new Date(target); prev.setDate(prev.getDate() - 1);
-  const next = new Date(target); next.setDate(next.getDate() + 1);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  const validDates = new Set([fmt(prev), workoutDate, fmt(next)]);
-  return activities.filter(a => validDates.has(a.start_date_local.split('T')[0]));
+  // Use exact date match only — start_date_local from Strava is already in local time
+  return activities.filter(a => a.start_date_local.split('T')[0] === workoutDate);
 }
