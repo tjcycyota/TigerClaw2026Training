@@ -37,6 +37,17 @@ export const storage = {
     all[id] = { ...all[id], ...override };
     setItem('workout_overrides', all);
   },
+  clearStravaActualsFromOverrides: () => {
+    const all = storage.getWorkoutOverrides();
+    const stravaKeys: (keyof PlannedWorkout)[] = ['stravaActivityId', 'actualDistanceMi', 'actualElevationFt', 'actualDurationMin', 'stravaName'];
+    const cleaned: Record<string, Partial<PlannedWorkout>> = {};
+    for (const [id, override] of Object.entries(all)) {
+      const entry = { ...override };
+      for (const k of stravaKeys) delete entry[k];
+      if (Object.keys(entry).length > 0) cleaned[id] = entry;
+    }
+    setItem('workout_overrides', cleaned);
+  },
 
   // ─── Volume adjustments ──────────────────────────────────────────────────
   getVolumeAdjustments: () => getItem<VolumeAdjustment[]>('volume_adjustments') ?? [],

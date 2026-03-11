@@ -47,7 +47,7 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 export function WeekView() {
-  const { activeWeekNumber, setActiveWeek, weeks, notifications, dismissNotification } = useCalendarStore();
+  const { activeWeekNumber, setActiveWeek, weeks } = useCalendarStore();
 
   const week = weeks.find(w => w.weekNumber === activeWeekNumber);
   if (!week) return <div className="p-4 text-slate-500">Week not found</div>;
@@ -73,7 +73,6 @@ export function WeekView() {
     else if (info.offset.x > 60) goToPrev();
   }
 
-  const weekNotifs = notifications.filter(n => !n.weekNumber || n.weekNumber === activeWeekNumber);
   const lastDate = allDates[allDates.length - 1] ?? week.startDate;
 
   return (
@@ -99,18 +98,6 @@ export function WeekView() {
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
-
-      {/* Notifications */}
-      {weekNotifs.map(n => (
-        <div key={n.id} className={`mx-4 mb-2 px-3 py-2 rounded-lg text-xs flex items-start gap-2 ${
-          n.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/50' :
-          n.type === 'success' ? 'bg-green-900/30 text-green-300 border border-green-700/50' :
-          'bg-blue-900/30 text-blue-300 border border-blue-700/50'
-        }`}>
-          <span className="flex-1">{n.message}</span>
-          <button onClick={() => dismissNotification(n.id)} className="opacity-60 flex-shrink-0">✕</button>
-        </div>
-      ))}
 
       {/* Progress bars */}
       <MileageProgress targetMi={week.targetVolumeMi} actualMi={week.actualVolumeMi ?? 0} />

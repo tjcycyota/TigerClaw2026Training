@@ -35,6 +35,7 @@ interface CalendarState {
     status?: WorkoutStatus;
   }) => void;
   updateWeekActuals: (weekNumber: number, actualVolumeMi: number, actualElevationFt: number) => void;
+  resetStravaActuals: () => void;
   moveWorkoutToDate: (workoutId: string, toDate: string) => void;
   setWeeks: (weeks: TrainingWeek[]) => void;
   addNotification: (n: AppNotification) => void;
@@ -100,6 +101,23 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
           ? { ...week, actualVolumeMi, actualElevationFt }
           : week
       ),
+    }));
+  },
+
+  resetStravaActuals: () => {
+    storage.clearStravaActualsFromOverrides();
+    const stravaKeys = ['stravaActivityId', 'actualDistanceMi', 'actualElevationFt', 'actualDurationMin', 'stravaName'] as const;
+    set(state => ({
+      weeks: state.weeks.map(week => ({
+        ...week,
+        actualVolumeMi: undefined,
+        actualElevationFt: undefined,
+        workouts: week.workouts.map(w => {
+          const cleaned = { ...w };
+          for (const k of stravaKeys) delete cleaned[k];
+          return cleaned;
+        }),
+      })),
     }));
   },
 

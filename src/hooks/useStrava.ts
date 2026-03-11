@@ -16,6 +16,7 @@ export function useStrava() {
     }
     stravaStore.setSyncing(true);
     stravaStore.setSyncError(null);
+    calendarStore.resetStravaActuals();
 
     try {
       const activities = await fetchActivitiesSince(
