@@ -31,8 +31,8 @@ export function useStrava() {
 
       for (const week of calendarStore.weeks) {
         for (const workout of week.workouts) {
-          // Only match running/quality workouts — not strength/rest placeholders
-          if (['rest', 'strength'].includes(workout.type)) continue;
+          // Skip strength — no Strava equivalent. Rest days CAN receive actuals (e.g. treadmill run on a planned rest day)
+          if (workout.type === 'strength') continue;
 
           const matches = matchActivitiesToWorkouts(activities, workout.date)
             .filter(a => !usedActivityIds.has(a.id));
