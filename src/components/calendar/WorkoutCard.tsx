@@ -129,6 +129,16 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
             )}
           </button>
 
+          {/* Rest day move button */}
+          {isRest && (
+            <div className="px-3 pb-2.5">
+              <button onClick={() => setShowAdjust(true)}
+                className="w-full py-1.5 rounded-lg text-xs font-medium bg-blue-600/40 text-blue-300">
+                Move / Reschedule
+              </button>
+            </div>
+          )}
+
           {/* Expanded */}
           {expanded && !isNonExpandable && (
             <div className={`px-3 pb-3 border-t ${cfg.border} pt-3 space-y-3`}>
